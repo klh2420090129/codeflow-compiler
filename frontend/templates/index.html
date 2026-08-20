@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeFlow - Compiler Design Laboratory</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header class="top-bar">
+        <div class="logo">
+            <h1>CodeFlow</h1>
+            <span class="subtitle">Compiler Design Laboratory</span>
+        </div>
+        
+        <div class="header-controls">
+            <select id="example-select">
+                <option value="">-- Select Example --</option>
+                <option value="basic">Basic Setup</option>
+                <option value="arithmetic">Arithmetic Operations</option>
+                <option value="conditions">Conditions (If/Else)</option>
+                <option value="loops">Loops (While)</option>
+                <option value="error_syntax">Syntax Error</option>
+                <option value="error_semantic">Semantic Error</option>
+            </select>
+            <label class="trace-toggle">
+                <input type="checkbox" id="trace-checkbox"> Enable VM Trace
+            </label>
+        </div>
+
+        <div class="status-indicator" id="status-indicator">
+            <span class="status-dot"></span>
+            <span id="status-text">CONNECTING</span>
+        </div>
+    </header>
+
+    <main class="layout">
+        <!-- LEFT COLUMN: Editor & Output -->
+        <div class="col-left">
+            <div class="panel editor-panel">
+                <div class="panel-header">
+                    <h2>SOURCE EDITOR</h2>
+                    <div class="actions">
+                        <button id="btn-clear" class="btn btn-secondary">Clear</button>
+                        <button id="btn-compile-only" class="btn btn-secondary">Compile Only</button>
+                        <button id="btn-compile-run" class="btn btn-primary">Compile & Run</button>
+                    </div>
+                </div>
+                <div class="editor-container">
+                    <div class="line-numbers" id="line-numbers">1</div>
+                    <textarea id="source-editor" spellcheck="false" placeholder="Write MiniLang code here..."></textarea>
+                </div>
+            </div>
+
+            <div class="panel output-panel">
+                <div class="panel-header">
+                    <h2>EXECUTION OUTPUT</h2>
+                </div>
+                <div class="output-content" id="execution-output">
+                    <div class="muted">Program not executed.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Pipeline & Inspector -->
+        <div class="col-right">
+            <div class="panel pipeline-panel">
+                <div class="panel-header">
+                    <h2>COMPILER PIPELINE</h2>
+                </div>
+                <div class="pipeline-stages" id="pipeline-stages">
+                    <div class="stage" data-phase="tokens">
+                        <span class="icon"></span> LEXER
+                    </div>
+                    <div class="stage" data-phase="ast">
+                        <span class="icon"></span> PARSER
+                    </div>
+                    <div class="stage" data-phase="symbol_table">
+                        <span class="icon"></span> SEMANTIC
+                    </div>
+                    <div class="stage" data-phase="tac">
+                        <span class="icon"></span> TAC GEN
+                    </div>
+                    <div class="stage" data-phase="optimized_tac">
+                        <span class="icon"></span> OPTIMIZER
+                    </div>
+                    <div class="stage" data-phase="target_code">
+                        <span class="icon"></span> CODEGEN
+                    </div>
+                    <div class="stage" data-phase="vm">
+                        <span class="icon"></span> VM EXEC
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel inspector-panel">
+                <div class="panel-header">
+                    <h2 id="inspector-title">PHASE INSPECTOR</h2>
+                </div>
+                <div class="inspector-content" id="inspector-content">
+                    <div class="muted center-message">Select a pipeline stage to inspect its output.</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
