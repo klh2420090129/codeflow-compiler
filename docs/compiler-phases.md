@@ -38,6 +38,7 @@ Accepts the generated TAC and runs robust analytical transformations to improve 
 - **Constant Propagation:** Tracks known constant values and substitutes them into subsequent variable references, avoiding unnecessary variable accesses.
 - **Algebraic Simplification:** Applies safe mathematical identities (e.g. `x * 0` -> `0`, `x + 0` -> `x`) eliminating useless ops.
 - **Dead Code Elimination (DCE):** Analyzes unused intermediate temporaries (like `t1` that was folded away) and prunes them from the instruction list.
+- **Optimization Explanation Engine:** Records structured, real-time `OptimizationStep` events during transformation (identifying rule, before/after values, and academic justifications) along with instruction reduction metrics.
 - **Safety:** Optimization explicitly tracks boundaries around labels and branches to preserve control-flow states. Original TAC is completely isolated from the Optimized TAC.
 
 ## Target Code Generation

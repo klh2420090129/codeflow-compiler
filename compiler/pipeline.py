@@ -7,6 +7,8 @@ from compiler.parser.parser import Parser
 from compiler.semantic.analyzer import SemanticAnalyzer
 from compiler.semantic.symbol_table import SymbolTable, Scope
 from compiler.intermediate.tac import TACGenerator, TACInstruction, Assignment, Binary, Unary, Label, Goto, ConditionalJump, Print
+from compiler.analysis.basic_blocks import BasicBlockAnalyzer, BasicBlock
+from compiler.analysis.cfg import CFGBuilder, ControlFlowGraph
 from compiler.optimizer.optimizer import Optimizer
 from compiler.codegen.codegen import CodeGenerator, TargetInstruction, TargetProgram
 from compiler.vm.virtual_machine import VirtualMachine, ExecutionTrace
@@ -20,7 +22,12 @@ class PipelineResult:
     ast: Optional[Dict[str, Any]] = None
     symbol_table: Optional[Dict[str, Any]] = None
     tac: Optional[List[Dict[str, Any]]] = None
+    basic_blocks: Optional[List[Dict[str, Any]]] = None
+    cfg: Optional[Dict[str, Any]] = None
     optimized_tac: Optional[List[Dict[str, Any]]] = None
+    optimization_stats: Optional[Dict[str, int]] = None
+    optimization_steps: Optional[List[Dict[str, Any]]] = None
+    optimization_summary: Optional[Dict[str, Any]] = None
     target_code: Optional[List[Dict[str, Any]]] = None
     execution_output: Optional[List[str]] = None
     execution_trace: Optional[List[Dict[str, Any]]] = None
@@ -34,7 +41,12 @@ class PipelineResult:
             "ast": self.ast,
             "symbol_table": self.symbol_table,
             "tac": self.tac,
+            "basic_blocks": self.basic_blocks,
+            "cfg": self.cfg,
             "optimized_tac": self.optimized_tac,
+            "optimization_stats": self.optimization_stats,
+            "optimization_steps": self.optimization_steps,
+            "optimization_summary": self.optimization_summary,
             "target_code": self.target_code,
             "execution_output": self.execution_output,
             "execution_trace": self.execution_trace,
@@ -140,11 +152,28 @@ def compile_source(source: str, execute: bool = True, trace: bool = False) -> Pi
             result.success = False
             result.error = serialize_error(e, "tac")
             return result
+
+        # Basic Block Analysis & CFG Construction
+        try:
+            bb_analyzer = BasicBlockAnalyzer()
+            basic_blocks = bb_analyzer.analyze(tac)
+            result.basic_blocks = [b.to_dict() for b in basic_blocks]
+
+            cfg_builder = CFGBuilder()
+            cfg = cfg_builder.build(basic_blocks)
+            result.cfg = cfg.to_dict()
+        except Exception as e:
+            result.success = False
+            result.error = serialize_error(e, "analysis")
+            return result
             
         try:
             opt = Optimizer()
             optimized_tac = opt.optimize(tac)
             result.optimized_tac = [serialize_tac(t) for t in optimized_tac]
+            result.optimization_stats = opt.stats.to_dict()
+            result.optimization_steps = [s.to_dict() for s in opt.steps]
+            result.optimization_summary = opt.get_summary(len(tac), len(optimized_tac))
         except Exception as e:
             result.success = False
             result.error = serialize_error(e, "optimization")
@@ -198,6 +227,8 @@ if __name__ == "__main__":
             if res.ast: print(f"AST\nGenerated\n")
             if res.symbol_table: print(f"SYMBOL TABLE\nGenerated\n")
             if res.tac: print(f"TAC\n{len(res.tac)} instructions\n")
+            if res.basic_blocks: print(f"BASIC BLOCKS\n{len(res.basic_blocks)} blocks\n")
+            if res.cfg: print(f"CFG\n{len(res.cfg['edges'])} edges\n")
             if res.optimized_tac: print(f"OPTIMIZED TAC\n{len(res.optimized_tac)} instructions\n")
             if res.target_code: print(f"TARGET CODE\n{len(res.target_code)} instructions\n")
             if res.execution_output: print(f"EXECUTION OUTPUT\n" + "\n".join(res.execution_output))

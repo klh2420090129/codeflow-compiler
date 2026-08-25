@@ -169,6 +169,7 @@ function updatePipelineVisuals() {
         ast: r.ast ? 'success' : 'skipped',
         symbol_table: r.symbol_table ? 'success' : 'skipped',
         tac: r.tac ? 'success' : 'skipped',
+        cfg: r.cfg ? 'success' : 'skipped',
         optimized_tac: r.optimized_tac ? 'success' : 'skipped',
         target_code: r.target_code ? 'success' : 'skipped',
         vm: r.execution_output || r.execution_trace ? 'success' : 'skipped'
@@ -180,6 +181,7 @@ function updatePipelineVisuals() {
         if (errPhase === 'syntax') stageStatus.ast = 'error';
         if (errPhase === 'semantic') stageStatus.symbol_table = 'error';
         if (errPhase === 'tac') stageStatus.tac = 'error';
+        if (errPhase === 'analysis') stageStatus.cfg = 'error';
         if (errPhase === 'optimization') stageStatus.optimized_tac = 'error';
         if (errPhase === 'codegen') stageStatus.target_code = 'error';
         if (errPhase === 'vm') stageStatus.vm = 'error';
@@ -187,7 +189,7 @@ function updatePipelineVisuals() {
     
     els.stages.forEach(stage => {
         const phase = stage.dataset.phase;
-        stage.className = `stage state-${stageStatus[phase]}`;
+        stage.className = `stage state-${stageStatus[phase] || 'skipped'}`;
     });
 }
 
@@ -211,6 +213,7 @@ function selectPhase(phase) {
         if (errPhase === 'lexical') errPhase = 'tokens';
         if (errPhase === 'syntax') errPhase = 'ast';
         if (errPhase === 'semantic') errPhase = 'symbol_table';
+        if (errPhase === 'analysis') errPhase = 'cfg';
         
         if (errPhase === phase) {
             renderPhaseError(state.result.error);
@@ -222,7 +225,8 @@ function selectPhase(phase) {
     else if (phase === 'ast' && state.result.ast) renderAST(state.result.ast);
     else if (phase === 'symbol_table' && state.result.symbol_table) renderSymbolTable(state.result.symbol_table);
     else if (phase === 'tac' && state.result.tac) renderTAC(state.result.tac);
-    else if (phase === 'optimized_tac' && state.result.optimized_tac) renderOptimizedTAC(state.result.tac, state.result.optimized_tac);
+    else if (phase === 'cfg' && state.result.cfg) renderCFG(state.result.cfg);
+    else if (phase === 'optimized_tac' && state.result.optimized_tac) renderOptimizedTAC(state.result.tac, state.result.optimized_tac, state.result.optimization_steps, state.result.optimization_summary);
     else if (phase === 'target_code' && state.result.target_code) renderTargetCode(state.result.target_code);
     else if (phase === 'vm' && state.result.execution_trace) renderTrace(state.result.execution_trace);
     else if (phase === 'vm' && state.result.execution_output) els.inspectorContent.innerHTML = '<div class="muted">Execution completed. Trace not enabled.</div>';
@@ -352,7 +356,7 @@ function renderTAC(tacList) {
     els.inspectorContent.innerHTML = html;
 }
 
-function renderOptimizedTAC(original, optimized) {
+function renderOptimizedTAC(original, optimized, steps, summary) {
     let origHtml = '';
     original.forEach((t, i) => {
         origHtml += `<div class="code-block"><div class="code-line-num">${String(i).padStart(2, '0')}</div><div class="code-content">${formatTACInstr(t)}</div></div>`;
@@ -362,17 +366,79 @@ function renderOptimizedTAC(original, optimized) {
     optimized.forEach((t, i) => {
         optHtml += `<div class="code-block"><div class="code-line-num">${String(i).padStart(2, '0')}</div><div class="code-content">${formatTACInstr(t)}</div></div>`;
     });
+
+    let summaryHtml = '';
+    if (summary) {
+        summaryHtml = `
+            <div class="opt-summary-card">
+                <div class="opt-summary-item">
+                    <span class="opt-summary-label">Total Steps</span>
+                    <span class="opt-summary-val">${summary.total_steps}</span>
+                </div>
+                <div class="opt-summary-item">
+                    <span class="opt-summary-label">Before / After</span>
+                    <span class="opt-summary-val">${summary.before_instruction_count} ➔ ${summary.after_instruction_count}</span>
+                </div>
+                <div class="opt-summary-item">
+                    <span class="opt-summary-label">Removed</span>
+                    <span class="opt-summary-val" style="color:var(--success)">-${summary.instructions_removed}</span>
+                </div>
+                <div class="opt-summary-item">
+                    <span class="opt-summary-label">Reduction</span>
+                    <span class="opt-summary-val" style="color:var(--accent)">${summary.reduction_percentage}%</span>
+                </div>
+            </div>
+        `;
+    }
+
+    let traceHtml = '';
+    if (steps && steps.length > 0) {
+        traceHtml += `<div class="opt-trace-section">`;
+        traceHtml += `<div class="opt-trace-header">OPTIMIZATION EXPLANATION TRACE</div>`;
+        traceHtml += `<div class="opt-trace-list">`;
+        steps.forEach(s => {
+            let passBadgeClass = 'opt-badge-prop';
+            if (s.pass_name === 'Constant Folding') passBadgeClass = 'opt-badge-fold';
+            else if (s.pass_name === 'Algebraic Simplification') passBadgeClass = 'opt-badge-alg';
+            else if (s.pass_name === 'Dead Code Elimination') passBadgeClass = 'opt-badge-dce';
+
+            traceHtml += `
+                <div class="opt-step-card">
+                    <div class="opt-step-top">
+                        <div class="opt-step-title">
+                            <span class="opt-step-num">#${String(s.step_number).padStart(2, '0')}</span>
+                            <span class="opt-badge ${passBadgeClass}">${s.pass_name.toUpperCase()}</span>
+                            <span class="opt-rule-tag">${s.rule}</span>
+                        </div>
+                    </div>
+                    <div class="opt-step-transform">
+                        <span class="opt-before">${s.before.replace(/</g, '&lt;')}</span>
+                        <span class="opt-arrow">➔</span>
+                        <span class="opt-after">${s.after.replace(/</g, '&lt;')}</span>
+                    </div>
+                    <div class="opt-step-explanation">${s.explanation}</div>
+                </div>
+            `;
+        });
+        traceHtml += `</div></div>`;
+    } else {
+        traceHtml = `<div class="opt-trace-section"><div class="opt-trace-header">OPTIMIZATION EXPLANATION TRACE</div><div class="muted center-message" style="height:60px;">No optimization opportunities detected for this code.</div></div>`;
+    }
     
     els.inspectorContent.innerHTML = `
-        <div class="opt-compare">
-            <div class="opt-pane">
-                <div class="opt-title">BEFORE (${original.length} instructions)</div>
-                ${origHtml}
+        <div class="opt-container">
+            ${summaryHtml}
+            <div class="opt-compare">
+                <div class="opt-pane">
+                    <div class="opt-title">BEFORE OPTIMIZATION (${original.length} instructions)</div>
+                    ${origHtml}
+                </div>
+                <div class="opt-pane">
+                    <div class="opt-title">AFTER OPTIMIZATION (${optimized.length} instructions)</div>
+                    ${optHtml}
+                </div>
             </div>
-            <div class="opt-pane">
-                <div class="opt-title">AFTER (${optimized.length} instructions)</div>
-                ${optHtml}
-            </div>
+            ${traceHtml}
         </div>
     `;
 }
@@ -401,5 +467,81 @@ function renderTrace(trace) {
         </tr>`;
     });
     html += `</table>`;
+    els.inspectorContent.innerHTML = html;
+}
+
+function renderCFG(cfg) {
+    if (!cfg || !cfg.blocks || cfg.blocks.length === 0) {
+        els.inspectorContent.innerHTML = '<div class="muted center-message">No Control Flow Graph data available.</div>';
+        return;
+    }
+
+    let html = `<div class="cfg-container">`;
+
+    // Header summary
+    html += `
+        <div class="cfg-header">
+            <span><strong>Blocks:</strong> ${cfg.blocks.length}</span>
+            <span><strong>Edges:</strong> ${cfg.edges.length}</span>
+            <span><strong>Entry:</strong> <span class="cfg-badge cfg-badge-entry">${cfg.entry || 'None'}</span></span>
+            <span><strong>Exits:</strong> ${cfg.exits && cfg.exits.length ? cfg.exits.map(e => `<span class="cfg-badge cfg-badge-exit">${e}</span>`).join(' ') : 'None'}</span>
+        </div>
+        <div class="cfg-graph-layout">
+    `;
+
+    cfg.blocks.forEach(block => {
+        const isEntry = block.id === cfg.entry;
+        const isExit = cfg.exits && cfg.exits.includes(block.id);
+        const cardClass = `cfg-node-card ${isEntry ? 'is-entry' : ''} ${isExit ? 'is-exit' : ''}`;
+
+        html += `<div class="cfg-node-card ${isEntry ? 'is-entry' : ''} ${isExit ? 'is-exit' : ''}">`;
+
+        // Node Header
+        html += `
+            <div class="cfg-node-header">
+                <div class="cfg-node-title">
+                    <span>${block.id}</span>
+                    ${block.label ? `<span style="color:var(--accent)">[${block.label}:]</span>` : ''}
+                    ${isEntry ? '<span class="cfg-badge cfg-badge-entry">ENTRY</span>' : ''}
+                    ${isExit ? '<span class="cfg-badge cfg-badge-exit">EXIT</span>' : ''}
+                </div>
+                <div style="font-size:0.75rem; color:var(--text-muted);">
+                    TAC lines [${String(block.start_index).padStart(2, '0')}-${String(block.end_index).padStart(2, '0')}]
+                </div>
+            </div>
+        `;
+
+        // Node Body (Instructions)
+        html += `<div class="cfg-node-body">`;
+        block.instructions.forEach(instr => {
+            html += `<div class="cfg-node-instr">${instr.replace(/</g, '&lt;')}</div>`;
+        });
+        html += `</div>`;
+
+        // Outgoing edges from this block
+        const outgoingEdges = cfg.edges.filter(e => e.from === block.id);
+
+        html += `<div class="cfg-node-footer">`;
+
+        // Predecessors
+        html += `<div><strong>Pred:</strong> ${block.predecessors.length > 0 ? block.predecessors.join(', ') : 'none'}</div>`;
+
+        // Successors with Edge Tags
+        html += `<div><strong>Succ:</strong> `;
+        if (outgoingEdges.length === 0) {
+            html += `<span class="muted">none (terminal)</span>`;
+        } else {
+            outgoingEdges.forEach(e => {
+                let tagClass = `cfg-edge-tag cfg-edge-${e.type}`;
+                let typeLabel = e.type === 'jump' ? 'JUMP' : (e.type === 'true' ? 'TRUE' : (e.type === 'false' ? 'FALSE' : 'FALLTHROUGH'));
+                html += `<span class="${tagClass}">➔ ${e.to} (${typeLabel})</span>`;
+            });
+        }
+        html += `</div>`;
+
+        html += `</div></div>`;
+    });
+
+    html += `</div></div>`;
     els.inspectorContent.innerHTML = html;
 }

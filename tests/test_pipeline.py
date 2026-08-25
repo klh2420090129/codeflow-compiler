@@ -9,6 +9,8 @@ def test_successful_compilation():
     assert res.ast is not None
     assert res.symbol_table is not None
     assert res.tac is not None
+    assert res.basic_blocks is not None
+    assert res.cfg is not None
     assert res.optimized_tac is not None
     assert res.target_code is not None
     assert res.execution_output == ["50"]
@@ -50,6 +52,8 @@ def test_execute_false():
     res = compile_source(source, execute=False)
     assert res.success is True
     assert res.execution_output is None
+    assert res.basic_blocks is not None
+    assert res.cfg is not None
 
 def test_trace_false():
     source = "let x = 10; print(x);"
@@ -63,9 +67,13 @@ def test_if_else():
     res = compile_source(source)
     assert res.success is True
     assert res.execution_output == ["2"]
+    assert len(res.basic_blocks) == 4
+    assert len(res.cfg["edges"]) == 4
 
 def test_while():
     source = "let x = 0; while (x < 3) { print(x); x = x + 1; }"
     res = compile_source(source)
     assert res.success is True
     assert res.execution_output == ["0", "1", "2"]
+    assert len(res.basic_blocks) == 4
+    assert len(res.cfg["edges"]) == 4

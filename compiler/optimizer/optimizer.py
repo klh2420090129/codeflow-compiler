@@ -1,7 +1,7 @@
 import sys
 import os
 import copy
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any, Set, Optional
 
 if __name__ == "__main__":
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
@@ -25,9 +25,73 @@ class OptimizationStats:
                 f"Algebraic Simplification: {self.algebraic_simplifications}\n"
                 f"Dead Code Elimination: {self.dead_code_eliminations}")
 
+    def to_dict(self) -> Dict[str, int]:
+        return {
+            "constant_folds": self.constant_folds,
+            "constant_propagations": self.constant_propagations,
+            "algebraic_simplifications": self.algebraic_simplifications,
+            "dead_code_eliminations": self.dead_code_eliminations
+        }
+
+class OptimizationStep:
+    def __init__(self, step_number: int, pass_name: str, rule: str, before: str, after: str, explanation: str, affected_target: Optional[str] = None):
+        self.step_number = step_number
+        self.pass_name = pass_name
+        self.rule = rule
+        self.before = before
+        self.after = after
+        self.explanation = explanation
+        self.affected_target = affected_target
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "step_number": self.step_number,
+            "pass_name": self.pass_name,
+            "rule": self.rule,
+            "before": self.before,
+            "after": self.after,
+            "explanation": self.explanation,
+            "affected_target": self.affected_target
+        }
+
+    def __repr__(self) -> str:
+        return f"OptimizationStep(#{self.step_number}, pass='{self.pass_name}', rule='{self.rule}', before='{self.before}', after='{self.after}')"
+
 class Optimizer:
     def __init__(self):
         self.stats = OptimizationStats()
+        self.steps: List[OptimizationStep] = []
+        self.step_counter = 0
+
+    def record_step(self, pass_name: str, rule: str, before: str, after: str, explanation: str, affected_target: Optional[str] = None):
+        self.step_counter += 1
+        step = OptimizationStep(
+            step_number=self.step_counter,
+            pass_name=pass_name,
+            rule=rule,
+            before=before,
+            after=after,
+            explanation=explanation,
+            affected_target=affected_target
+        )
+        self.steps.append(step)
+
+    def get_summary(self, before_count: int, after_count: int) -> Dict[str, Any]:
+        removed = max(0, before_count - after_count)
+        reduction_pct = round((removed / before_count * 100.0), 2) if before_count > 0 else 0.0
+        return {
+            "total_steps": len(self.steps),
+            "passes": {
+                "constant_propagation": self.stats.constant_propagations,
+                "constant_folding": self.stats.constant_folds,
+                "algebraic_simplification": self.stats.algebraic_simplifications,
+                "dead_code_elimination": self.stats.dead_code_eliminations
+            },
+            "before_instruction_count": before_count,
+            "after_instruction_count": after_count,
+            "instructions_removed": removed,
+            "reduction_percentage": reduction_pct
+        }
         
     def is_constant(self, val: Any) -> bool:
         if isinstance(val, (int, float, bool)):
@@ -93,8 +157,18 @@ class Optimizer:
                 result.append(instr)
             elif isinstance(instr, Assignment):
                 if isinstance(instr.arg1, str) and instr.arg1 in constants:
-                    instr.arg1 = constants[instr.arg1]
+                    orig_var = instr.arg1
+                    const_val = constants[instr.arg1]
+                    instr.arg1 = const_val
                     self.stats.constant_propagations += 1
+                    self.record_step(
+                        pass_name="Constant Propagation",
+                        rule="replace_known_constant",
+                        before=f"{orig_var}",
+                        after=f"{const_val}",
+                        explanation=f"Replaced variable '{orig_var}' with its known compile-time constant value '{const_val}' in assignment to '{instr.result}'.",
+                        affected_target=instr.result
+                    )
                 
                 if self.is_constant(instr.arg1):
                     constants[instr.result] = instr.arg1
@@ -105,11 +179,31 @@ class Optimizer:
                 
             elif isinstance(instr, Binary):
                 if isinstance(instr.arg1, str) and instr.arg1 in constants:
-                    instr.arg1 = constants[instr.arg1]
+                    orig_var1 = instr.arg1
+                    const_val1 = constants[instr.arg1]
+                    instr.arg1 = const_val1
                     self.stats.constant_propagations += 1
+                    self.record_step(
+                        pass_name="Constant Propagation",
+                        rule="replace_known_constant",
+                        before=f"{orig_var1}",
+                        after=f"{const_val1}",
+                        explanation=f"Replaced left operand variable '{orig_var1}' with known constant value '{const_val1}' in binary operation for '{instr.result}'.",
+                        affected_target=instr.result
+                    )
                 if isinstance(instr.arg2, str) and instr.arg2 in constants:
-                    instr.arg2 = constants[instr.arg2]
+                    orig_var2 = instr.arg2
+                    const_val2 = constants[instr.arg2]
+                    instr.arg2 = const_val2
                     self.stats.constant_propagations += 1
+                    self.record_step(
+                        pass_name="Constant Propagation",
+                        rule="replace_known_constant",
+                        before=f"{orig_var2}",
+                        after=f"{const_val2}",
+                        explanation=f"Replaced right operand variable '{orig_var2}' with known constant value '{const_val2}' in binary operation for '{instr.result}'.",
+                        affected_target=instr.result
+                    )
                 
                 if instr.result in constants:
                     del constants[instr.result]
@@ -117,8 +211,18 @@ class Optimizer:
                 
             elif isinstance(instr, Unary):
                 if isinstance(instr.arg1, str) and instr.arg1 in constants:
-                    instr.arg1 = constants[instr.arg1]
+                    orig_var = instr.arg1
+                    const_val = constants[instr.arg1]
+                    instr.arg1 = const_val
                     self.stats.constant_propagations += 1
+                    self.record_step(
+                        pass_name="Constant Propagation",
+                        rule="replace_known_constant",
+                        before=f"{orig_var}",
+                        after=f"{const_val}",
+                        explanation=f"Replaced operand variable '{orig_var}' with known constant value '{const_val}' in unary operation for '{instr.result}'.",
+                        affected_target=instr.result
+                    )
                 
                 if instr.result in constants:
                     del constants[instr.result]
@@ -126,8 +230,18 @@ class Optimizer:
                 
             elif isinstance(instr, ConditionalJump):
                 if isinstance(instr.condition, str) and instr.condition in constants:
-                    instr.condition = constants[instr.condition]
+                    orig_var = instr.condition
+                    const_val = constants[instr.condition]
+                    instr.condition = const_val
                     self.stats.constant_propagations += 1
+                    self.record_step(
+                        pass_name="Constant Propagation",
+                        rule="replace_known_constant",
+                        before=f"{orig_var}",
+                        after=f"{const_val}",
+                        explanation=f"Replaced branch condition variable '{orig_var}' with known constant value '{const_val}'.",
+                        affected_target=None
+                    )
                 result.append(instr)
                 constants.clear()
                 
@@ -137,8 +251,18 @@ class Optimizer:
                 
             elif isinstance(instr, Print):
                 if isinstance(instr.value, str) and instr.value in constants:
-                    instr.value = constants[instr.value]
+                    orig_var = instr.value
+                    const_val = constants[instr.value]
+                    instr.value = const_val
                     self.stats.constant_propagations += 1
+                    self.record_step(
+                        pass_name="Constant Propagation",
+                        rule="replace_known_constant",
+                        before=f"{orig_var}",
+                        after=f"{const_val}",
+                        explanation=f"Replaced print argument variable '{orig_var}' with known constant value '{const_val}'.",
+                        affected_target=None
+                    )
                 result.append(instr)
             else:
                 result.append(instr)
@@ -182,41 +306,116 @@ class Optimizer:
                         
                         if res is not None:
                             self.stats.constant_folds += 1
-                            result.append(Assignment(instr.result, self.format_constant(res)))
+                            folded_str = self.format_constant(res)
+                            before_expr = f"{instr.arg1} {instr.op} {instr.arg2}"
+                            self.record_step(
+                                pass_name="Constant Folding",
+                                rule="constant_binary_expression",
+                                before=f"{instr.result} = {before_expr}",
+                                after=f"{instr.result} = {folded_str}",
+                                explanation=f"Both operands ({instr.arg1} and {instr.arg2}) are compile-time constants; evaluated '{before_expr}' to '{folded_str}' at compile time.",
+                                affected_target=instr.result
+                            )
+                            result.append(Assignment(instr.result, folded_str))
                             continue
                     except Exception:
                         pass
                 
+                # Algebraic simplifications
                 if instr.op == '+' and c2 and self.get_constant_value(instr.arg2) == 0:
                     self.stats.algebraic_simplifications += 1
+                    self.record_step(
+                        pass_name="Algebraic Simplification",
+                        rule="add_zero_identity",
+                        before=f"{instr.result} = {instr.arg1} + 0",
+                        after=f"{instr.result} = {instr.arg1}",
+                        explanation=f"Adding 0 to '{instr.arg1}' is an identity operation; simplified to '{instr.arg1}'.",
+                        affected_target=instr.result
+                    )
                     result.append(Assignment(instr.result, instr.arg1))
                     continue
                 if instr.op == '+' and c1 and self.get_constant_value(instr.arg1) == 0:
                     self.stats.algebraic_simplifications += 1
+                    self.record_step(
+                        pass_name="Algebraic Simplification",
+                        rule="zero_add_identity",
+                        before=f"{instr.result} = 0 + {instr.arg2}",
+                        after=f"{instr.result} = {instr.arg2}",
+                        explanation=f"Adding 0 to '{instr.arg2}' is an identity operation; simplified to '{instr.arg2}'.",
+                        affected_target=instr.result
+                    )
                     result.append(Assignment(instr.result, instr.arg2))
                     continue
                 if instr.op == '-' and c2 and self.get_constant_value(instr.arg2) == 0:
                     self.stats.algebraic_simplifications += 1
+                    self.record_step(
+                        pass_name="Algebraic Simplification",
+                        rule="subtract_zero_identity",
+                        before=f"{instr.result} = {instr.arg1} - 0",
+                        after=f"{instr.result} = {instr.arg1}",
+                        explanation=f"Subtracting 0 from '{instr.arg1}' is an identity operation; simplified to '{instr.arg1}'.",
+                        affected_target=instr.result
+                    )
                     result.append(Assignment(instr.result, instr.arg1))
                     continue
                 if instr.op == '*' and c2 and self.get_constant_value(instr.arg2) == 1:
                     self.stats.algebraic_simplifications += 1
+                    self.record_step(
+                        pass_name="Algebraic Simplification",
+                        rule="multiply_by_one",
+                        before=f"{instr.result} = {instr.arg1} * 1",
+                        after=f"{instr.result} = {instr.arg1}",
+                        explanation=f"Multiplying '{instr.arg1}' by 1 is an identity operation; simplified to '{instr.arg1}'.",
+                        affected_target=instr.result
+                    )
                     result.append(Assignment(instr.result, instr.arg1))
                     continue
                 if instr.op == '*' and c1 and self.get_constant_value(instr.arg1) == 1:
                     self.stats.algebraic_simplifications += 1
+                    self.record_step(
+                        pass_name="Algebraic Simplification",
+                        rule="one_multiplication_identity",
+                        before=f"{instr.result} = 1 * {instr.arg2}",
+                        after=f"{instr.result} = {instr.arg2}",
+                        explanation=f"Multiplying 1 by '{instr.arg2}' is an identity operation; simplified to '{instr.arg2}'.",
+                        affected_target=instr.result
+                    )
                     result.append(Assignment(instr.result, instr.arg2))
                     continue
                 if instr.op == '*' and c2 and self.get_constant_value(instr.arg2) == 0:
                     self.stats.algebraic_simplifications += 1
+                    self.record_step(
+                        pass_name="Algebraic Simplification",
+                        rule="multiply_by_zero",
+                        before=f"{instr.result} = {instr.arg1} * 0",
+                        after=f"{instr.result} = 0",
+                        explanation=f"Multiplying '{instr.arg1}' by 0 always yields 0; simplified to '0'.",
+                        affected_target=instr.result
+                    )
                     result.append(Assignment(instr.result, "0"))
                     continue
                 if instr.op == '*' and c1 and self.get_constant_value(instr.arg1) == 0:
                     self.stats.algebraic_simplifications += 1
+                    self.record_step(
+                        pass_name="Algebraic Simplification",
+                        rule="zero_multiplication",
+                        before=f"{instr.result} = 0 * {instr.arg2}",
+                        after=f"{instr.result} = 0",
+                        explanation=f"Multiplying 0 by '{instr.arg2}' always yields 0; simplified to '0'.",
+                        affected_target=instr.result
+                    )
                     result.append(Assignment(instr.result, "0"))
                     continue
                 if instr.op == '/' and c2 and self.get_constant_value(instr.arg2) == 1:
                     self.stats.algebraic_simplifications += 1
+                    self.record_step(
+                        pass_name="Algebraic Simplification",
+                        rule="divide_by_one",
+                        before=f"{instr.result} = {instr.arg1} / 1",
+                        after=f"{instr.result} = {instr.arg1}",
+                        explanation=f"Dividing '{instr.arg1}' by 1 is an identity operation; simplified to '{instr.arg1}'.",
+                        affected_target=instr.result
+                    )
                     result.append(Assignment(instr.result, instr.arg1))
                     continue
             
@@ -231,7 +430,17 @@ class Optimizer:
                         
                         if res is not None:
                             self.stats.constant_folds += 1
-                            result.append(Assignment(instr.result, self.format_constant(res)))
+                            folded_str = self.format_constant(res)
+                            before_expr = f"{instr.op}{instr.arg1}"
+                            self.record_step(
+                                pass_name="Constant Folding",
+                                rule="constant_unary_expression",
+                                before=f"{instr.result} = {before_expr}",
+                                after=f"{instr.result} = {folded_str}",
+                                explanation=f"Unary operand '{instr.arg1}' is a compile-time constant; evaluated '{before_expr}' to '{folded_str}' at compile time.",
+                                affected_target=instr.result
+                            )
+                            result.append(Assignment(instr.result, folded_str))
                             continue
                     except Exception:
                         pass
@@ -259,6 +468,14 @@ class Optimizer:
             if isinstance(instr, (Assignment, Binary, Unary)):
                 if str(instr.result).startswith('t') and str(instr.result) not in used:
                     self.stats.dead_code_eliminations += 1
+                    self.record_step(
+                        pass_name="Dead Code Elimination",
+                        rule="unused_temporary",
+                        before=f"{str(instr)}",
+                        after="<removed>",
+                        explanation=f"Temporary variable '{instr.result}' is never read downstream in this scope; safely eliminated the assignment.",
+                        affected_target=instr.result
+                    )
                     continue
             result.append(instr)
             
@@ -297,6 +514,11 @@ if __name__ == "__main__":
             
         print("\n========== OPTIMIZATION STATISTICS ==========\n")
         print(optimizer.stats)
+
+        print("\n========== OPTIMIZATION EXPLANATION TRACE ==========\n")
+        for step in optimizer.steps:
+            print(f"[{step.step_number:02d}] {step.pass_name} ({step.rule}): {step.before} -> {step.after}")
+            print(f"     Explanation: {step.explanation}")
             
     except (LexicalError, ParserError, SemanticError) as e:
         print(f"\n========== COMPILER ERROR ==========\n")
