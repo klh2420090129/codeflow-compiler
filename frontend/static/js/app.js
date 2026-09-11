@@ -1,20 +1,32 @@
 const DEFAULT_PROGRAMS = {
-    basic: `let x = 10;\nlet y = 20;\nlet z = x + y * 2;\nprint(z);`,
-    arithmetic: `let a = 15.5;\nlet b = 4.5;\nlet result = (a + b) * 10 / 2;\nprint(result);`,
-    conditions: `let age = 18;\nif (age >= 18) {\n    print(1);\n} else {\n    print(0);\n}`,
-    loops: `let count = 0;\nwhile (count < 5) {\n    print(count);\n    count = count + 1;\n}`,
-    error_syntax: `let x = ;\nprint(x);`,
-    error_semantic: `let a = 10;\nlet b = c + 5;\nprint(b);`
+    minilang: {
+        basic: `let x = 10;\nlet y = 20;\nlet z = x + y * 2;\nprint(z);`,
+        arithmetic: `let a = 15.5;\nlet b = 4.5;\nlet result = (a + b) * 10 / 2;\nprint(result);`,
+        conditions: `let age = 18;\nif (age >= 18) {\n    print(1);\n} else {\n    print(0);\n}`,
+        loops: `let count = 0;\nwhile (count < 5) {\n    print(count);\n    count = count + 1;\n}`,
+        error_syntax: `let x = ;\nprint(x);`,
+        error_semantic: `let a = 10;\nlet b = c + 5;\nprint(b);`
+    },
+    python: {
+        basic: `x = 10\ny = 20\nz = x + y * 2\nprint(z)`,
+        arithmetic: `a = 15.5\nb = 4.5\nresult = (a + b) * 10 / 2\nprint(result)`,
+        conditions: `age = 18\nif age >= 18:\n    print(1)\nelse:\n    print(0)`,
+        loops: `count = 0\nwhile count < 5:\n    print(count)\n    count = count + 1`,
+        error_syntax: `x = \nprint(x)`,
+        error_semantic: `a = 10\nb = c + 5\nprint(b)`
+    }
 };
 
 let state = {
     result: null,
     selectedPhase: null,
-    compiling: false
+    compiling: false,
+    language: 'minilang'
 };
 
 // UI Elements
 const els = {
+    languageSelect: document.getElementById('language-select'),
     editor: document.getElementById('source-editor'),
     lineNumbers: document.getElementById('line-numbers'),
     statusIndicator: document.getElementById('status-indicator'),
@@ -35,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkHealth();
     setupEditor();
     setupListeners();
-    els.editor.value = DEFAULT_PROGRAMS.basic;
+    els.editor.value = DEFAULT_PROGRAMS.minilang.basic;
     updateLineNumbers();
 });
 
@@ -65,16 +77,29 @@ function updateLineNumbers() {
 }
 
 function setupListeners() {
+    if (els.languageSelect) {
+        els.languageSelect.addEventListener('change', (e) => {
+            state.language = e.target.value;
+            els.editor.placeholder = state.language === 'python' ? 'Write Python code here...' : 'Write MiniLang code here...';
+            const langProgs = DEFAULT_PROGRAMS[state.language] || DEFAULT_PROGRAMS.minilang;
+            const exVal = els.exampleSelect.value || 'basic';
+            els.editor.value = langProgs[exVal] || langProgs.basic;
+            updateLineNumbers();
+            clearAll(false);
+        });
+    }
+
     els.exampleSelect.addEventListener('change', (e) => {
-        if (e.target.value && DEFAULT_PROGRAMS[e.target.value]) {
-            els.editor.value = DEFAULT_PROGRAMS[e.target.value];
+        const langProgs = DEFAULT_PROGRAMS[state.language] || DEFAULT_PROGRAMS.minilang;
+        if (e.target.value && langProgs[e.target.value]) {
+            els.editor.value = langProgs[e.target.value];
             updateLineNumbers();
         }
     });
 
     els.btnCompileRun.addEventListener('click', () => compileSource(true));
     els.btnCompileOnly.addEventListener('click', () => compileSource(false));
-    els.btnClear.addEventListener('click', clearAll);
+    els.btnClear.addEventListener('click', () => clearAll(true));
 
     els.stages.forEach(stage => {
         stage.addEventListener('click', () => {
@@ -88,9 +113,11 @@ function setStatus(status, text) {
     els.statusText.textContent = text;
 }
 
-function clearAll() {
-    els.editor.value = '';
-    updateLineNumbers();
+function clearAll(clearEditor = true) {
+    if (clearEditor) {
+        els.editor.value = '';
+        updateLineNumbers();
+    }
     state.result = null;
     els.output.innerHTML = '<div class="muted">Program not executed.</div>';
     els.inspectorTitle.textContent = 'PHASE INSPECTOR';
@@ -124,12 +151,13 @@ async function compileSource(execute) {
     els.inspectorContent.innerHTML = '<div class="muted center-message">Select a pipeline stage to inspect its output.</div>';
 
     const trace = els.traceCheckbox.checked;
+    const language = state.language;
 
     try {
         const res = await fetch('/api/compile', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ source, execute, trace })
+            body: JSON.stringify({ source, execute, trace, language })
         });
         
         state.result = await res.json();

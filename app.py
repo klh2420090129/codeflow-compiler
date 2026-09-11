@@ -28,8 +28,9 @@ def compile_code():
     source = data['source']
     execute = data.get('execute', True)
     trace = data.get('trace', False)
+    language = data.get('language', 'minilang')
     
-    result = compile_source(source, execute=execute, trace=trace)
+    result = compile_source(source, execute=execute, trace=trace, language=language)
     return jsonify(result.to_dict())
 
 if __name__ == "__main__":
