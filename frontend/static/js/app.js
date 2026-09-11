@@ -14,6 +14,38 @@ const DEFAULT_PROGRAMS = {
         loops: `count = 0\nwhile count < 5:\n    print(count)\n    count = count + 1`,
         error_syntax: `x = \nprint(x)`,
         error_semantic: `a = 10\nb = c + 5\nprint(b)`
+    },
+    c: {
+        basic: `int x = 10;\nint y = 20;\nint z = x + y * 2;\nprintf("%d\\n", z);`,
+        arithmetic: `float a = 15.5;\nfloat b = 4.5;\nfloat result = (a + b) * 10 / 2;\nprintf("%f\\n", result);`,
+        conditions: `int age = 18;\nif (age >= 18) {\n    printf("%d\\n", 1);\n} else {\n    printf("%d\\n", 0);\n}`,
+        loops: `int count = 0;\nwhile (count < 5) {\n    printf("%d\\n", count);\n    count = count + 1;\n}`,
+        error_syntax: `int x = ;\nprintf("%d\\n", x);`,
+        error_semantic: `int a = 10;\nint b = c + 5;\nprintf("%d\\n", b);`
+    },
+    javascript: {
+        basic: `let x = 10;\nlet y = 20;\nlet z = x + y * 2;\nconsole.log(z);`,
+        arithmetic: `let a = 15.5;\nlet b = 4.5;\nlet result = (a + b) * 10 / 2;\nconsole.log(result);`,
+        conditions: `let age = 18;\nif (age >= 18) {\n    console.log(1);\n} else {\n    console.log(0);\n}`,
+        loops: `let count = 0;\nwhile (count < 5) {\n    console.log(count);\n    count = count + 1;\n}`,
+        error_syntax: `let x = ;\nconsole.log(x);`,
+        error_semantic: `let a = 10;\nlet b = c + 5;\nconsole.log(b);`
+    },
+    java: {
+        basic: `public class Main {\n    public static void main(String[] args) {\n        int x = 10;\n        int y = 20;\n        int z = x + y * 2;\n        System.out.println(z);\n    }\n}`,
+        arithmetic: `public class Main {\n    public static void main(String[] args) {\n        double a = 15.5;\n        double b = 4.5;\n        double result = (a + b) * 10 / 2;\n        System.out.println(result);\n    }\n}`,
+        conditions: `public class Main {\n    public static void main(String[] args) {\n        int age = 18;\n        if (age >= 18) {\n            System.out.println(1);\n        } else {\n            System.out.println(0);\n        }\n    }\n}`,
+        loops: `public class Main {\n    public static void main(String[] args) {\n        int count = 0;\n        while (count < 5) {\n            System.out.println(count);\n            count = count + 1;\n        }\n    }\n}`,
+        error_syntax: `public class Main {\n    public static void main(String[] args) {\n        int x = ;\n        System.out.println(x);\n    }\n}`,
+        error_semantic: `public class Main {\n    public static void main(String[] args) {\n        int a = 10;\n        int b = c + 5;\n        System.out.println(b);\n    }\n}`
+    },
+    cpp: {
+        basic: `int main() {\n    int x = 10;\n    int y = 20;\n    int z = x + y * 2;\n    std::cout << z << std::endl;\n}`,
+        arithmetic: `int main() {\n    double a = 15.5;\n    double b = 4.5;\n    double result = (a + b) * 10 / 2;\n    std::cout << result << std::endl;\n}`,
+        conditions: `int main() {\n    int age = 18;\n    if (age >= 18) {\n        std::cout << 1 << std::endl;\n    } else {\n        std::cout << 0 << std::endl;\n    }\n}`,
+        loops: `int main() {\n    int count = 0;\n    while (count < 5) {\n        std::cout << count << std::endl;\n        count = count + 1;\n    }\n}`,
+        error_syntax: `int main() {\n    int x = ;\n    std::cout << x << std::endl;\n}`,
+        error_semantic: `int main() {\n    int a = 10;\n    int b = c + 5;\n    std::cout << b << std::endl;\n}`
     }
 };
 
@@ -80,7 +112,15 @@ function setupListeners() {
     if (els.languageSelect) {
         els.languageSelect.addEventListener('change', (e) => {
             state.language = e.target.value;
-            els.editor.placeholder = state.language === 'python' ? 'Write Python code here...' : 'Write MiniLang code here...';
+            const placeholders = {
+                python: 'Write Python code here...',
+                c: 'Write C code here...',
+                javascript: 'Write JavaScript code here...',
+                java: 'Write Java code here...',
+                cpp: 'Write C++ code here...',
+                minilang: 'Write MiniLang code here...'
+            };
+            els.editor.placeholder = placeholders[state.language] || 'Write code here...';
             const langProgs = DEFAULT_PROGRAMS[state.language] || DEFAULT_PROGRAMS.minilang;
             const exVal = els.exampleSelect.value || 'basic';
             els.editor.value = langProgs[exVal] || langProgs.basic;

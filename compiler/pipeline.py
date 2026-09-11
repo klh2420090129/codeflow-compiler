@@ -12,7 +12,7 @@ from compiler.analysis.cfg import CFGBuilder, ControlFlowGraph
 from compiler.optimizer.optimizer import Optimizer
 from compiler.codegen.codegen import CodeGenerator, TargetInstruction, TargetProgram
 from compiler.vm.virtual_machine import VirtualMachine, ExecutionTrace
-from compiler.errors import CompilerError
+from compiler.errors import CompilerError, SemanticError
 
 @dataclass
 class PipelineResult:
@@ -116,7 +116,8 @@ def compile_source(source: str, execute: bool = True, trace: bool = False, langu
     result = PipelineResult(success=True, source=source)
     
     try:
-        if language.lower() == "python":
+        lang = language.lower()
+        if lang == "python":
             from compiler.frontends.python.frontend import PythonFrontend
             try:
                 py_frontend = PythonFrontend(source)
@@ -130,6 +131,90 @@ def compile_source(source: str, execute: bool = True, trace: bool = False, langu
                 ast = py_frontend.parse_to_codeflow_ast()
                 if hasattr(ast, "to_dict"):
                     result.ast = ast.to_dict()
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "syntax")
+                return result
+        elif lang == "c":
+            from compiler.frontends.c.frontend import CFrontend
+            try:
+                c_frontend = CFrontend(source)
+                result.tokens = c_frontend.tokenize()
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "lexical")
+                return result
+
+            try:
+                ast = c_frontend.parse_to_codeflow_ast()
+                if hasattr(ast, "to_dict"):
+                    result.ast = ast.to_dict()
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "syntax")
+                return result
+        elif lang in ("javascript", "js"):
+            from compiler.frontends.javascript.frontend import JSFrontend
+            try:
+                js_frontend = JSFrontend(source)
+                result.tokens = js_frontend.tokenize()
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "lexical")
+                return result
+
+            try:
+                ast = js_frontend.parse_to_codeflow_ast()
+                if hasattr(ast, "to_dict"):
+                    result.ast = ast.to_dict()
+            except SemanticError as e:
+                result.success = False
+                result.error = serialize_error(e, "semantic")
+                return result
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "syntax")
+                return result
+        elif lang == "java":
+            from compiler.frontends.java.frontend import JavaFrontend
+            try:
+                java_frontend = JavaFrontend(source)
+                result.tokens = java_frontend.tokenize()
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "lexical")
+                return result
+
+            try:
+                ast = java_frontend.parse_to_codeflow_ast()
+                if hasattr(ast, "to_dict"):
+                    result.ast = ast.to_dict()
+            except SemanticError as e:
+                result.success = False
+                result.error = serialize_error(e, "semantic")
+                return result
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "syntax")
+                return result
+        elif lang in ("cpp", "c++"):
+            from compiler.frontends.cpp.frontend import CPPFrontend
+            try:
+                cpp_frontend = CPPFrontend(source)
+                result.tokens = cpp_frontend.tokenize()
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "lexical")
+                return result
+
+            try:
+                ast = cpp_frontend.parse_to_codeflow_ast()
+                if hasattr(ast, "to_dict"):
+                    result.ast = ast.to_dict()
+            except SemanticError as e:
+                result.success = False
+                result.error = serialize_error(e, "semantic")
+                return result
             except Exception as e:
                 result.success = False
                 result.error = serialize_error(e, "syntax")
