@@ -88,6 +88,18 @@ select {
 
 select:hover { border-color: var(--text-muted); }
 
+.lang-selector-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.control-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
 .trace-toggle {
     font-size: 0.85rem;
     color: var(--text-muted);

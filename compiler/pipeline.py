@@ -112,28 +112,47 @@ def serialize_error(e: Exception, phase: str) -> Dict[str, Any]:
         "column": 0
     }
 
-def compile_source(source: str, execute: bool = True, trace: bool = False) -> PipelineResult:
+def compile_source(source: str, execute: bool = True, trace: bool = False, language: str = "minilang") -> PipelineResult:
     result = PipelineResult(success=True, source=source)
     
     try:
-        try:
-            lexer = Lexer(source)
-            tokens = lexer.tokenize()
-            result.tokens = [serialize_token(t) for t in tokens]
-        except Exception as e:
-            result.success = False
-            result.error = serialize_error(e, "lexical")
-            return result
-            
-        try:
-            parser = Parser(tokens)
-            ast = parser.parse()
-            if hasattr(ast, "to_dict"):
-                result.ast = ast.to_dict()
-        except Exception as e:
-            result.success = False
-            result.error = serialize_error(e, "syntax")
-            return result
+        if language.lower() == "python":
+            from compiler.frontends.python.frontend import PythonFrontend
+            try:
+                py_frontend = PythonFrontend(source)
+                result.tokens = py_frontend.tokenize()
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "lexical")
+                return result
+
+            try:
+                ast = py_frontend.parse_to_codeflow_ast()
+                if hasattr(ast, "to_dict"):
+                    result.ast = ast.to_dict()
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "syntax")
+                return result
+        else:
+            try:
+                lexer = Lexer(source)
+                tokens = lexer.tokenize()
+                result.tokens = [serialize_token(t) for t in tokens]
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "lexical")
+                return result
+                
+            try:
+                parser = Parser(tokens)
+                ast = parser.parse()
+                if hasattr(ast, "to_dict"):
+                    result.ast = ast.to_dict()
+            except Exception as e:
+                result.success = False
+                result.error = serialize_error(e, "syntax")
+                return result
             
         try:
             analyzer = SemanticAnalyzer()
